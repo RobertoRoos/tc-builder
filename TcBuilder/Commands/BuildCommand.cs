@@ -7,7 +7,7 @@ namespace TcBuilder.Commands;
 /// <summary>
 /// <c>tcbuilder build &lt;solution&gt; [--configuration] [--output]</c>
 /// </summary>
-internal sealed class BuildCommand : Command
+public class BuildCommand : Command
 {
     public BuildCommand(ITwinCatBuildService buildService, ILogger<BuildCommand> logger)
         : base("build", "Build a TwinCAT solution.")

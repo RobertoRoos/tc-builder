@@ -8,7 +8,7 @@ namespace TcBuilder.Services;
 /// This is a scaffold — the real automation (TcXaeShell / Visual Studio DTE)
 /// hangs off the TODOs below.
 /// </summary>
-internal sealed class TwinCatBuildService : ITwinCatBuildService
+public class TwinCatBuildService : ITwinCatBuildService
 {
     private readonly ILogger<TwinCatBuildService> _logger;
 
