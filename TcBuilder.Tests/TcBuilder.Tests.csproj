@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TcBuilder.csproj" />
+    <ProjectReference Include="..\TcBuilder\TcBuilder.csproj" />
   </ItemGroup>
 
   <ItemGroup>

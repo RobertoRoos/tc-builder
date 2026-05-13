@@ -4,7 +4,7 @@ VisualStudioVersion = 17.14.37027.9
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TcBuilder", "TcBuilder\TcBuilder.csproj", "{0EB6DEDD-EC7F-4EA3-BFEE-52AD71529AEC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TcBuilder", "TcBuilder.csproj", "{0EB6DEDD-EC7F-4EA3-BFEE-52AD71529AEC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TcBuilder.Tests", "TcBuilder.Tests\TcBuilder.Tests.csproj", "{64BB703E-B925-61B5-C243-4EEBAAB8C36D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
