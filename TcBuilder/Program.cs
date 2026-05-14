@@ -26,7 +26,11 @@ builder.Logging.AddSimpleConsole(options =>
     options.TimestampFormat = "HH:mm:ss ";
 });
 
+// TODO: Replace by CLI option
+builder.Logging.SetMinimumLevel(LogLevel.Debug);
+
 // -- Services -------------------------------------------------------------
+builder.Services.AddSingleton<TwinCatHelper, TwinCatHelper>();
 builder.Services.AddSingleton<ITwinCatBuildService, TwinCatBuildService>();
 
 // -- Commands -------------------------------------------------------------
@@ -42,6 +46,7 @@ builder.Services.AddSingleton<RootCommand>(sp =>
     root.Subcommands.Add(sp.GetRequiredService<BuildCommand>());
     root.Subcommands.Add(sp.GetRequiredService<CleanCommand>());
     root.Subcommands.Add(sp.GetRequiredService<InfoCommand>());
+
     return root;
 });
 

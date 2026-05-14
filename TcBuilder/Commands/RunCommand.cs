@@ -9,38 +9,40 @@ namespace TcBuilder.Commands;
 /// </summary>
 public class RunCommand : Command
 {
-    public RunCommand(ITwinCatBuildService buildService, ILogger<RunCommand> logger)
+    public RunCommand(TwinCatHelper tc, ILogger<RunCommand> logger)
         : base("run", "Run a sequence on a TwinCAT solution")
     {
         Option<string[]> stepsOption = new("--steps", "-s")
         {
             Description = "Actions to do for this target, in order.",
             AllowMultipleArgumentsPerToken = true,
-            Required = true,
         };
+        Options.Add(stepsOption);
 
         Option<FileInfo?> solutionOption = new("--solution", "-i")
         {
             Description = "Path to a solution containing a TwinCAT project.",
         };
-
-        Options.Add(stepsOption);
         Options.Add(solutionOption);
 
-        SetAction(async (parseResult, cancellationToken) =>
+        Option<IDEVersion?> ideOption = new("--ide")
         {
-            string[] steps = parseResult.GetValue(stepsOption)!;
-            var solution = parseResult.GetValue(solutionOption);
+            Description = "IDE version to use (default: use the first that can be located)",
+        };
+        Options.Add(ideOption);
 
-            logger.LogInformation(solution.ToString());
-
-            foreach (string step in steps)
+        SetAction(
+            async (parseResult, cancellationToken) =>
             {
-                logger.LogInformation(step);
-            }
+                // CLI arguments:
+                string[] steps = parseResult.GetValue(stepsOption)!;
+                var solution = parseResult.GetValue(solutionOption);
 
-            logger.LogInformation("Hi!");
-            return 0;
-        });
+                // Prepare environment:
+                tc.InitDte(parseResult.GetValue(ideOption));
+
+                return 0;
+            }
+        );
     }
 }
