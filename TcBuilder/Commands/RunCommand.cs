@@ -9,7 +9,7 @@ namespace TcBuilder.Commands;
 /// </summary>
 public class RunCommand : Command
 {
-    public RunCommand(TwinCatHelper tc, ILogger<RunCommand> logger)
+    public RunCommand(TcService tc, ILogger<RunCommand> logger)
         : base("run", "Run a sequence on a TwinCAT solution")
     {
         Option<string[]> stepsOption = new("--steps", "-s")

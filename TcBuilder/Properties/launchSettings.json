@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "TcBuilder": {
+      "commandName": "Project",
+      "commandLineArgs": "run --solution \"TwinCAT Project.sln\"",
+      "workingDirectory": "C:\\Users\\rr7070\\Source\\Public\\tc-builder\\playground\\TwinCAT Project"
+    }
+  }
+}

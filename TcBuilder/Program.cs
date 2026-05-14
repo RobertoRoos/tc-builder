@@ -30,22 +30,15 @@ builder.Logging.AddSimpleConsole(options =>
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
 // -- Services -------------------------------------------------------------
-builder.Services.AddSingleton<TwinCatHelper, TwinCatHelper>();
-builder.Services.AddSingleton<ITwinCatBuildService, TwinCatBuildService>();
+builder.Services.AddSingleton<TcService, TcService>();
 
 // -- Commands -------------------------------------------------------------
 builder.Services.AddSingleton<RunCommand>();
-builder.Services.AddSingleton<BuildCommand>();
-builder.Services.AddSingleton<CleanCommand>();
-builder.Services.AddSingleton<InfoCommand>();
 
 builder.Services.AddSingleton<RootCommand>(sp =>
 {
     RootCommand root = new("tcbuilder — CLI for building TwinCAT solutions.");
     root.Subcommands.Add(sp.GetRequiredService<RunCommand>());
-    root.Subcommands.Add(sp.GetRequiredService<BuildCommand>());
-    root.Subcommands.Add(sp.GetRequiredService<CleanCommand>());
-    root.Subcommands.Add(sp.GetRequiredService<InfoCommand>());
 
     return root;
 });

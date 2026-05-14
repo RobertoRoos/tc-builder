@@ -26,13 +26,15 @@ public enum IDEVersion
 ///
 /// Each instance of the helper will store DTE instances, solutions, projects,
 /// etc.
+///
+/// It is used as a singleton in the application framework.
 /// </summary>
-public class TwinCatHelper
+public class TcService
 {
     private EnvDTE.DTE? _dte;
-    private readonly ILogger<TwinCatHelper> _logger;
+    private readonly ILogger<TcService> _logger;
 
-    public TwinCatHelper(ILogger<TwinCatHelper> logger)
+    public TcService(ILogger<TcService> logger)
     {
         _logger = logger;
     }
@@ -84,7 +86,7 @@ public class TwinCatHelper
             {
                 return MakeDte(ver);
             }
-            catch (InvalidOperationException e) { }
+            catch (InvalidOperationException) { }
         }
         throw new InvalidOperationException("Failed to initialize any DTE");
     }
@@ -98,7 +100,7 @@ public class TwinCatHelper
         _logger.LogDebug("Created DTE instance");
     }
 
-    ~TwinCatHelper()
+    ~TcService()
     {
         if (_dte is not null)
         {
