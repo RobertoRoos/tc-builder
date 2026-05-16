@@ -8,21 +8,16 @@
     <RootNamespace>TcBuilder</RootNamespace>
     <AssemblyName>tcbuilder</AssemblyName>
   </PropertyGroup>
-  <ItemGroup>
-    <COMReference Include="TCatSysManagerLib">
-      <WrapperTool>tlbimp</WrapperTool>
-      <VersionMinor>4</VersionMinor>
-      <VersionMajor>3</VersionMajor>
-      <Guid>3c49d6c3-93dc-11d0-b162-00a0248c244b</Guid>
-      <Lcid>0</Lcid>
-      <Isolated>false</Isolated>
-      <EmbedInteropTypes>true</EmbedInteropTypes>
-    </COMReference>
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="envdte100" Version="17.14.40260" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="System.CommandLine" Version="2.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Interop.TCatSysManagerLib">
+      <HintPath>Interop.TCatSysManagerLib.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
