@@ -5,6 +5,16 @@ using TcBuilder.Services;
 namespace TcBuilder.Commands;
 
 /// <summary>
+/// Possible 'step' values
+/// </summary>
+public enum Step
+{
+    build,
+    check,
+    activate,
+}
+
+/// <summary>
 /// <c>tcbuilder run ...</c>
 /// </summary>
 public class RunCommand : Command
@@ -12,11 +22,15 @@ public class RunCommand : Command
     public RunCommand(TcService tc, ILogger<RunCommand> logger)
         : base("run", "Run a sequence on a TwinCAT solution")
     {
-        Option<string[]> stepsOption = new("--steps", "-s")
+        Option<Step[]> stepsOption = new("--steps", "-s")
         {
-            Description = "Actions to do for this target, in order.",
+            Description = "Actions to do for this target, in order.\n" + "Valid options are: ",
             AllowMultipleArgumentsPerToken = true,
         };
+        foreach (var step in Enum.GetValues(typeof(Step)))
+        {
+            stepsOption.Description += $"'{step}', ";
+        }
         Options.Add(stepsOption);
 
         Option<FileInfo?> solutionOption = new("--solution", "-i")
@@ -24,6 +38,12 @@ public class RunCommand : Command
             Description = "Path to a solution containing a TwinCAT project.",
         };
         Options.Add(solutionOption);
+
+        Option<string?> plcNameOption = new("--plc", "-p")
+        {
+            Description = "Exact name of the PLC project (default: detected automatically)",
+        };
+        Options.Add(plcNameOption);
 
         Option<IDEVersion?> ideOption = new("--ide")
         {
@@ -37,6 +57,20 @@ public class RunCommand : Command
         };
         Options.Add(attachOption);
 
+        Option<bool> showUIOption = new("--show-ui", "-u")
+        {
+            Description = "Do not hide / surpress the IDE instance (which is the default)",
+        };
+        Options.Add(showUIOption);
+
+        Option<bool> keepOpenOption = new("--keep-open", "-k")
+        {
+            Description =
+                "Do not close the instance when done (only meaningful in combination with '--keep-open')\n"
+                + "(this is already implied when using '--attach')",
+        };
+        Options.Add(keepOpenOption);
+
         SetAction(
             async (parseResult, cancellationToken) =>
             {
@@ -48,18 +82,24 @@ public class RunCommand : Command
                 tc.IdeVersion = parseResult.GetValue(ideOption);
                 tc.Attach = parseResult.GetValue(attachOption);
                 tc.SolutionFile = parseResult.GetValue(solutionOption);
+                if (parseResult.GetValue(plcNameOption) is string name)
+                {
+                    tc.PlcProjectName = name;
+                }
+                tc.KeepOpen = parseResult.GetValue(keepOpenOption);
+                tc.ShowUI = parseResult.GetValue(showUIOption);
 
-                foreach (string step in parseResult.GetValue(stepsOption)!)
+                foreach (var step in parseResult.GetValue(stepsOption)!)
                 {
                     switch (step)
                     {
-                        case "build":
+                        case Step.build:
                             tc.Build();
                             break;
-                        case "check-objects":
+                        case Step.check:
                             tc.CheckObjects();
                             break;
-                        case "activate":
+                        case Step.activate:
                             tc.Activate();
                             break;
                         default:

@@ -44,6 +44,8 @@ public class TcService : IDisposable
     public IDEVersion? IdeVersion { get; set; }
     public bool Attach { get; set; } = false;
     public FileInfo? SolutionFile { get; set; }
+    public bool KeepOpen { get; set; } = false;
+    public bool ShowUI { get; set; } = false;
 
     // Privates:
     private EnvDTE.DTE? _dte;
@@ -109,6 +111,13 @@ public class TcService : IDisposable
                         _logger.LogInformation($"Opening solution file '{path}'...");
                         _solution.Open(path);
                     }
+                }
+
+                if (!_solution.IsOpen)
+                {
+                    throw new InvalidOperationException(
+                        "No solution opened or selected, cannot continue"
+                    );
                 }
             }
             return _solution;
@@ -270,7 +279,10 @@ public class TcService : IDisposable
                         $"Could not make DTE instance of type {infoStr}"
                     );
                 }
-                return (EnvDTE.DTE)Activator.CreateInstance(type);
+                var dte = (EnvDTE.DTE)Activator.CreateInstance(type);
+                dte.SuppressUI = !ShowUI;
+                dte.MainWindow.Visible = ShowUI;
+                return dte;
             }
         }
 
@@ -290,7 +302,7 @@ public class TcService : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_dte is not null && !Attach)
+        if (_dte is not null && !Attach && !KeepOpen)
         {
             _logger.LogDebug("Closing IDE...");
             _dte.Quit();
@@ -309,7 +321,7 @@ public class TcService : IDisposable
         var context = conf.SolutionContexts.Item(1);
         string name = conf.Name + "|" + context.PlatformName;
 
-        _logger.LogInformation($"Building solution ({name})...");
+        _logger.LogInformation($"Building solution [{name}]...");
 
         solutionBuild.Build(true);
     }
