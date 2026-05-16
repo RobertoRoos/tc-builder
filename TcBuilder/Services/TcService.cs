@@ -1,4 +1,6 @@
-﻿using EnvDTE100;
+﻿using System.Runtime.InteropServices;
+using EnvDTE;
+using EnvDTE100;
 using Microsoft.Extensions.Logging;
 
 namespace TcBuilder.Services;
@@ -17,8 +19,8 @@ public enum IDEVersion
     VS2017,
 
     // TwinCAT XAE shell:
-    TcXAEx64, // 64-bit
-    TcXAE, // 32-bit
+    TcXAE, // 64-bit (very like prefered over the 32 bit, so use the short name)
+    TcXAE32, // 32-bit
 }
 
 /// <summary>
@@ -29,14 +31,76 @@ public enum IDEVersion
 ///
 /// It is used as a singleton in the application framework.
 /// </summary>
-public class TcService
+public class TcService : IDisposable
 {
+    // Inputs:
+    public IDEVersion? IdeVersion { get; set; }
+    public bool Attach { get; set; } = false;
+    public FileInfo? SolutionFile { get; set; }
+
+    // Privates:
     private EnvDTE.DTE? _dte;
+    private EnvDTE.Solution? _solution;
+
     private readonly ILogger<TcService> _logger;
 
+    /// <summary>
+    /// Constructor
+    /// </summary>
     public TcService(ILogger<TcService> logger)
     {
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Property for the DTE instance
+    /// </summary>
+    protected EnvDTE.DTE DTE
+    {
+        get
+        {
+            if (_dte is null)
+            {
+                _dte = GetOrMakeDTE(IdeVersion);
+            }
+            return _dte;
+        }
+    }
+
+    /// <summary>
+    /// Property for the DTE.Solution instance
+    /// </summary>
+    protected EnvDTE.Solution Solution
+    {
+        get
+        {
+            if (_solution is null)
+            {
+                _solution = DTE.Solution;
+
+                if (SolutionFile is FileInfo file)
+                {
+                    var path = file.FullName;
+                    if (_solution.IsOpen)
+                    {
+                        var currentPath = _solution.FullName;
+                        _logger.LogDebug($"Currently opened solution: '{currentPath}'");
+                        if (currentPath != path)
+                        {
+                            throw new InvalidOperationException(
+                                $"Not opening solution '{path}' because this instance already has a different solution opened: '{currentPath}'"
+                            );
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Opening solution file '{path}'...");
+                        _solution.Open(path);
+                    }
+                }
+            }
+            return _solution;
+        }
     }
 
     /// <summary>
@@ -52,9 +116,9 @@ public class TcService
                 return "VisualStudio.DTE.16.0";
             case IDEVersion.VS2017:
                 return "VisualStudio.DTE.15.0";
-            case IDEVersion.TcXAEx64:
-                return "TcXaeShell.DTE.17.0";
             case IDEVersion.TcXAE:
+                return "TcXaeShell.DTE.17.0";
+            case IDEVersion.TcXAE32:
                 return "TcXaeShell.DTE.15.0";
             default:
                 throw new ArgumentException("Unknown IDE verson", nameof(version));
@@ -64,48 +128,77 @@ public class TcService
     /// <summary>
     /// Return a new DTE instance.
     /// </summary>
-    protected EnvDTE.DTE MakeDte(IDEVersion? version)
+    protected EnvDTE.DTE GetOrMakeDTE(IDEVersion? version)
     {
         if (version is IDEVersion v)
         {
             var progId = GetProgId(v);
-            _logger.LogDebug($"Trying to make DTE for {v} ({progId})...");
-            Type? type = Type.GetTypeFromProgID(progId);
-            if (type is null)
+            string infoStr = $"'{v}' ({progId})";
+            if (Attach)
             {
-                throw new InvalidOperationException(
-                    $"Could not make DTE instance of type '{progId}' ({v})"
-                );
+                _logger.LogDebug($"Trying to attach to DTE for {infoStr}...");
+                try
+                {
+                    return (EnvDTE.DTE)Marshal2.GetActiveObject(progId);
+                }
+                catch (COMException)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not attach to DTE instance of type {infoStr}"
+                    );
+                }
             }
-            return (EnvDTE.DTE)Activator.CreateInstance(type);
+            else
+            {
+                _logger.LogDebug($"Trying to make DTE for {infoStr}...");
+                Type? type = Type.GetTypeFromProgID(progId);
+                if (type is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not make DTE instance of type {infoStr}"
+                    );
+                }
+                return (EnvDTE.DTE)Activator.CreateInstance(type);
+            }
         }
 
         foreach (IDEVersion ver in Enum.GetValues(typeof(IDEVersion)))
         {
             try
             {
-                return MakeDte(ver);
+                return GetOrMakeDTE(ver);
             }
-            catch (InvalidOperationException) { }
+            catch (InvalidOperationException) { } // Let slide and try the next option
         }
         throw new InvalidOperationException("Failed to initialize any DTE");
     }
 
     /// <summary>
-    /// Prepare a DTE instance.
+    /// 'deconstructor', kind of
     /// </summary>
-    public void InitDte(IDEVersion? version)
+    public void Dispose()
     {
-        _dte = MakeDte(version);
-        _logger.LogDebug("Created DTE instance");
-    }
-
-    ~TcService()
-    {
-        if (_dte is not null)
+        if (_dte is not null && !Attach)
         {
+            _logger.LogDebug("Closing IDE...");
             _dte.Quit();
             _dte = null;
         }
+    }
+
+    /// <summary>
+    /// Compile the solution.
+    /// </summary>
+    public void Build()
+    {
+        var solutionBuild = Solution.SolutionBuild; // Do first so the logging order is correct
+
+        var conf = solutionBuild.ActiveConfiguration;
+        var context = conf.SolutionContexts.Item(1);
+        string name = conf.Name + "|" + context.PlatformName;
+
+        _logger.LogInformation($"Building solution ({name})...");
+
+        solutionBuild.Build(true);
     }
 }

@@ -31,15 +31,35 @@ public class RunCommand : Command
         };
         Options.Add(ideOption);
 
+        Option<bool> attachOption = new("--attach")
+        {
+            Description = "Attach to a running IDE instance instead of opening a new one",
+        };
+        Options.Add(attachOption);
+
         SetAction(
             async (parseResult, cancellationToken) =>
             {
                 // CLI arguments:
-                string[] steps = parseResult.GetValue(stepsOption)!;
+
                 var solution = parseResult.GetValue(solutionOption);
 
-                // Prepare environment:
-                tc.InitDte(parseResult.GetValue(ideOption));
+                // Set info:
+                tc.IdeVersion = parseResult.GetValue(ideOption);
+                tc.Attach = parseResult.GetValue(attachOption);
+                tc.SolutionFile = parseResult.GetValue(solutionOption);
+
+                foreach (string step in parseResult.GetValue(stepsOption)!)
+                {
+                    switch (step)
+                    {
+                        case "build":
+                            tc.Build();
+                            break;
+                        default:
+                            throw new InvalidOperationException($"Unknown step '{step}'");
+                    }
+                }
 
                 return 0;
             }
