@@ -2,6 +2,11 @@
 using EnvDTE;
 using EnvDTE100;
 using Microsoft.Extensions.Logging;
+using TCatSysManagerLib; // This is made available as a "COM Reference" in this VS project
+using TcPlcIECProject = TCatSysManagerLib.ITcPlcIECProject7;
+using TcSysManager = TCatSysManagerLib.ITcSysManager18;
+
+// For whatever reason these classes have a bunch of numbered sub-classes, we just pick the latest ones
 
 namespace TcBuilder.Services;
 
@@ -28,6 +33,7 @@ public enum IDEVersion
 ///
 /// Each instance of the helper will store DTE instances, solutions, projects,
 /// etc.
+/// These are all loaded lazy through properties.
 ///
 /// It is used as a singleton in the application framework.
 /// </summary>
@@ -41,6 +47,10 @@ public class TcService : IDisposable
     // Privates:
     private EnvDTE.DTE? _dte;
     private EnvDTE.Solution? _solution;
+    private EnvDTE.Project? _tcProject;
+    private TcPlcIECProject? _plcProject;
+    private string _plcProjectName = "<unknown>"; // The name is not accessible from `_plcProject` itself
+    private TcSysManager? _sysManager;
 
     private readonly ILogger<TcService> _logger;
 
@@ -100,6 +110,72 @@ public class TcService : IDisposable
                 }
             }
             return _solution;
+        }
+    }
+
+    /// <summary>
+    /// Property for the TwinCAT project (.tsproj)
+    /// </summary>
+    protected EnvDTE.Project TcProject
+    {
+        get
+        {
+            if (_tcProject is null)
+            {
+                var count = Solution.Projects.Count;
+                if (count != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Solution has {count} projects instead of just one, unsure how to continue"
+                    );
+                }
+                _tcProject = Solution.Projects.Item(1);
+            }
+            return _tcProject;
+        }
+    }
+
+    /// <summary>
+    /// Property for the internal system manager object.
+    /// </summary>
+    protected TcSysManager SysManager
+    {
+        get
+        {
+            if (_sysManager is null)
+            {
+                _sysManager = (TcSysManager)TcProject.Object;
+            }
+            return _sysManager;
+        }
+    }
+
+    /// <summary>
+    /// Property for the PLC project (.plcproj)
+    /// </summary>
+    protected TcPlcIECProject PlcProject
+    {
+        get
+        {
+            if (_plcProject is null)
+            {
+                var tipc = SysManager.LookupTreeItem("TIPC");
+                var count = tipc.ChildCount;
+                if (count != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Found {count} PLC projects instead of just one, not sure how to continue"
+                    );
+                }
+                // Rather absurd, but we must first determine the exact project name and then retrieve the project again
+                // 'tipc.Child[1]` may not be cast to a `TcPlcIECProject` instance
+                _plcProjectName = tipc.Child[1].Name;
+                var plcItem = SysManager.LookupTreeItem(
+                    $"TIPC^{_plcProjectName}^{_plcProjectName} Project"
+                );
+                _plcProject = (TcPlcIECProject)plcItem;
+            }
+            return _plcProject;
         }
     }
 
@@ -200,5 +276,23 @@ public class TcService : IDisposable
         _logger.LogInformation($"Building solution ({name})...");
 
         solutionBuild.Build(true);
+    }
+
+    /// <summary>
+    /// Perform the 'check all objects' action on the PLC project.
+    /// </summary>
+    public void CheckObjects()
+    {
+        var project = PlcProject;
+        _logger.LogInformation($"Performing 'check all objects' for '{_plcProjectName}'...");
+        bool result = project.CheckAllObjects();
+        if (result)
+        {
+            _logger.LogInformation("No errors found");
+        }
+        else
+        {
+            _logger.LogError("Errors found in PLC project!");
+        }
     }
 }

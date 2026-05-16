@@ -56,6 +56,9 @@ public class RunCommand : Command
                         case "build":
                             tc.Build();
                             break;
+                        case "check-objects":
+                            tc.CheckObjects();
+                            break;
                         default:
                             throw new InvalidOperationException($"Unknown step '{step}'");
                     }
