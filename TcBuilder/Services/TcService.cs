@@ -3,10 +3,11 @@ using EnvDTE;
 using EnvDTE100;
 using Microsoft.Extensions.Logging;
 using TCatSysManagerLib; // This is made available as a "COM Reference" in this VS project
+//
+// For whatever reason these classes have a bunch of numbered sub-classes, we just pick the latest ones:
 using TcPlcIECProject = TCatSysManagerLib.ITcPlcIECProject7;
+using TcPlcProject = TCatSysManagerLib.ITcPlcProject; // There is IECProject and just Project and they are different...
 using TcSysManager = TCatSysManagerLib.ITcSysManager18;
-
-// For whatever reason these classes have a bunch of numbered sub-classes, we just pick the latest ones
 
 namespace TcBuilder.Services;
 
@@ -49,7 +50,8 @@ public class TcService : IDisposable
     private EnvDTE.Solution? _solution;
     private EnvDTE.Project? _tcProject;
     private TcPlcIECProject? _plcProject;
-    private string _plcProjectName = "<unknown>"; // The name is not accessible from `_plcProject` itself
+    private string? _plcProjectName; // The name is not accessible from `_plcProject` itself
+    private TcPlcProject? _plcRootProject;
     private TcSysManager? _sysManager;
 
     private readonly ILogger<TcService> _logger;
@@ -159,6 +161,43 @@ public class TcService : IDisposable
         {
             if (_plcProject is null)
             {
+                var plcItem = SysManager.LookupTreeItem(
+                    $"TIPC^{PlcProjectName}^{PlcProjectName} Project"
+                );
+                _plcProject = (TcPlcIECProject)plcItem;
+            }
+            return _plcProject;
+        }
+    }
+
+    /// <summary>
+    /// Property for the alternative type of a PLC project
+    /// </summary>
+    protected TcPlcProject PlcRootProject
+    {
+        get
+        {
+            if (_plcRootProject is null)
+            {
+                // Without the second "^<name> Project":
+                var plcItem = SysManager.LookupTreeItem($"TIPC^{PlcProjectName}");
+                _plcRootProject = (TcPlcProject)plcItem;
+            }
+            return _plcRootProject;
+        }
+    }
+
+    /// <summary>
+    /// Public property for PLC project name.
+    ///
+    /// If never specified, look for it automatically.
+    /// </summary>
+    public string PlcProjectName
+    {
+        get
+        {
+            if (_plcProjectName is null)
+            {
                 var tipc = SysManager.LookupTreeItem("TIPC");
                 var count = tipc.ChildCount;
                 if (count != 1)
@@ -167,16 +206,13 @@ public class TcService : IDisposable
                         $"Found {count} PLC projects instead of just one, not sure how to continue"
                     );
                 }
-                // Rather absurd, but we must first determine the exact project name and then retrieve the project again
-                // 'tipc.Child[1]` may not be cast to a `TcPlcIECProject` instance
+                // Rather absurd, but we must first determine the exact project name and then retrieve the project again.
+                // 'tipc.Child[1]` may _not_ be cast to a `TcPlcIECProject` instance
                 _plcProjectName = tipc.Child[1].Name;
-                var plcItem = SysManager.LookupTreeItem(
-                    $"TIPC^{_plcProjectName}^{_plcProjectName} Project"
-                );
-                _plcProject = (TcPlcIECProject)plcItem;
             }
-            return _plcProject;
+            return _plcProjectName;
         }
+        set { _plcProjectName = value; }
     }
 
     /// <summary>
@@ -293,6 +329,30 @@ public class TcService : IDisposable
         else
         {
             _logger.LogError("Errors found in PLC project!");
+        }
+    }
+
+    /// <summary>
+    /// Same as clicking 'Activate Configuration' in TwinCAT, also downloads PLC project.
+    /// </summary>
+    public void Activate()
+    {
+        var netId = SysManager.GetTargetNetId();
+
+        _logger.LogInformation($"Activating configuration on '{netId}'...");
+
+        SysManager.ActivateConfiguration();
+
+        _logger.LogInformation("Making PLC boot project...");
+
+        PlcRootProject.BootProjectAutostart = true;
+        PlcRootProject.GenerateBootProject(true);
+
+        SysManager.StartRestartTwinCAT();
+
+        if (!SysManager.IsTwinCATStarted())
+        {
+            _logger.LogError("TwinCAT is not actually in run mode");
         }
     }
 }
