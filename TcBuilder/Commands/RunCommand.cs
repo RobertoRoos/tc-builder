@@ -27,10 +27,10 @@ public class RunCommand : Command
             Description = "Actions to do for this target, in order.\n" + "Valid options are: ",
             AllowMultipleArgumentsPerToken = true,
         };
-        foreach (var step in Enum.GetValues(typeof(Step)))
-        {
-            stepsOption.Description += $"'{step}', ";
-        }
+        stepsOption.Description += string.Join(
+            ", ",
+            Enum.GetValues<Step>().Select(step => $"'{step}'")
+        );
         Options.Add(stepsOption);
 
         Option<FileInfo?> solutionOption = new("--solution", "-i")
@@ -71,6 +71,13 @@ public class RunCommand : Command
         };
         Options.Add(keepOpenOption);
 
+        Option<bool> warningsOption = new("--warnings-as-errors", "-W")
+        {
+            Description =
+                "Treat warnings as errors, potentially failing otherwise succeeding builds",
+        };
+        Options.Add(warningsOption);
+
         SetAction(
             async (parseResult, cancellationToken) =>
             {
@@ -88,6 +95,7 @@ public class RunCommand : Command
                 }
                 tc.KeepOpen = parseResult.GetValue(keepOpenOption);
                 tc.ShowUI = parseResult.GetValue(showUIOption);
+                tc.WarningsAsError = parseResult.GetValue(warningsOption);
 
                 foreach (var step in parseResult.GetValue(stepsOption)!)
                 {

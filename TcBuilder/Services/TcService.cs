@@ -1,13 +1,18 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.ComponentModel;
+using System.Runtime.InteropServices;
 using EnvDTE;
 using EnvDTE100;
+using EnvDTE80;
 using Microsoft.Extensions.Logging;
 using TCatSysManagerLib; // This is made available as a "COM Reference" in this VS project
 //
 // For whatever reason these classes have a bunch of numbered sub-classes, we just pick the latest ones:
-using TcPlcIECProject = TCatSysManagerLib.ITcPlcIECProject7;
-using TcPlcProject = TCatSysManagerLib.ITcPlcProject; // There is IECProject and just Project and they are different...
-using TcSysManager = TCatSysManagerLib.ITcSysManager18;
+using TypeDTE = EnvDTE80.DTE2;
+using TypePlcIECProject = TCatSysManagerLib.ITcPlcIECProject7;
+using TypePlcProject = TCatSysManagerLib.ITcPlcProject; // There is IECProject and just Project and they are different...
+using TypeProject = EnvDTE.Project;
+using TypeSolution = EnvDTE100.Solution4;
+using TypeSysManager = TCatSysManagerLib.ITcSysManager18;
 
 namespace TcBuilder.Services;
 
@@ -46,15 +51,18 @@ public class TcService : IDisposable
     public FileInfo? SolutionFile { get; set; }
     public bool KeepOpen { get; set; } = false;
     public bool ShowUI { get; set; } = false;
+    public bool WarningsAsError { get; set; } = false;
 
     // Privates:
-    private EnvDTE.DTE? _dte;
-    private EnvDTE.Solution? _solution;
-    private EnvDTE.Project? _tcProject;
-    private TcPlcIECProject? _plcProject;
+    private TypeDTE? _dte;
+    private TypeSolution? _solution;
+    private TypeProject? _tcProject;
+    private TypePlcIECProject? _plcProject;
     private string? _plcProjectName; // The name is not accessible from `_plcProject` itself
-    private TcPlcProject? _plcRootProject;
-    private TcSysManager? _sysManager;
+    private TypePlcProject? _plcRootProject;
+    private TypeSysManager? _sysManager;
+    private OutputWindowPane? _buildOutput;
+    private EditPoint? _buildOutputStartPoint; // Head-end of new build output
 
     private readonly ILogger<TcService> _logger;
 
@@ -69,13 +77,15 @@ public class TcService : IDisposable
     /// <summary>
     /// Property for the DTE instance
     /// </summary>
-    protected EnvDTE.DTE DTE
+    protected TypeDTE DTE
     {
         get
         {
             if (_dte is null)
             {
                 _dte = GetOrMakeDTE(IdeVersion);
+
+                ConsumeBuildOutput(); // As the DTE is new, reset the build output head
             }
             return _dte;
         }
@@ -84,13 +94,13 @@ public class TcService : IDisposable
     /// <summary>
     /// Property for the DTE.Solution instance
     /// </summary>
-    protected EnvDTE.Solution Solution
+    protected TypeSolution Solution
     {
         get
         {
             if (_solution is null)
             {
-                _solution = DTE.Solution;
+                _solution = (TypeSolution)DTE.Solution;
 
                 if (SolutionFile is FileInfo file)
                 {
@@ -127,7 +137,7 @@ public class TcService : IDisposable
     /// <summary>
     /// Property for the TwinCAT project (.tsproj)
     /// </summary>
-    protected EnvDTE.Project TcProject
+    protected TypeProject TcProject
     {
         get
         {
@@ -149,13 +159,13 @@ public class TcService : IDisposable
     /// <summary>
     /// Property for the internal system manager object.
     /// </summary>
-    protected TcSysManager SysManager
+    protected TypeSysManager SysManager
     {
         get
         {
             if (_sysManager is null)
             {
-                _sysManager = (TcSysManager)TcProject.Object;
+                _sysManager = (TypeSysManager)TcProject.Object;
             }
             return _sysManager;
         }
@@ -164,7 +174,7 @@ public class TcService : IDisposable
     /// <summary>
     /// Property for the PLC project (.plcproj)
     /// </summary>
-    protected TcPlcIECProject PlcProject
+    protected TypePlcIECProject PlcProject
     {
         get
         {
@@ -173,7 +183,7 @@ public class TcService : IDisposable
                 var plcItem = SysManager.LookupTreeItem(
                     $"TIPC^{PlcProjectName}^{PlcProjectName} Project"
                 );
-                _plcProject = (TcPlcIECProject)plcItem;
+                _plcProject = (TypePlcIECProject)plcItem;
             }
             return _plcProject;
         }
@@ -182,7 +192,7 @@ public class TcService : IDisposable
     /// <summary>
     /// Property for the alternative type of a PLC project
     /// </summary>
-    protected TcPlcProject PlcRootProject
+    protected TypePlcProject PlcRootProject
     {
         get
         {
@@ -190,7 +200,7 @@ public class TcService : IDisposable
             {
                 // Without the second "^<name> Project":
                 var plcItem = SysManager.LookupTreeItem($"TIPC^{PlcProjectName}");
-                _plcRootProject = (TcPlcProject)plcItem;
+                _plcRootProject = (TypePlcProject)plcItem;
             }
             return _plcRootProject;
         }
@@ -225,6 +235,22 @@ public class TcService : IDisposable
     }
 
     /// <summary>
+    /// Property for the build output window pane.
+    /// </summary>
+    protected OutputWindowPane BuildOutput
+    {
+        get
+        {
+            if (_buildOutput is null)
+            {
+                var outputPanes = DTE.ToolWindows.OutputWindow.OutputWindowPanes;
+                _buildOutput = outputPanes.Item("build");
+            }
+            return _buildOutput;
+        }
+    }
+
+    /// <summary>
     /// Get ProgId string from an IDE version enum.
     /// </summary>
     public static string GetProgId(IDEVersion version)
@@ -249,7 +275,12 @@ public class TcService : IDisposable
     /// <summary>
     /// Return a new DTE instance.
     /// </summary>
-    protected EnvDTE.DTE GetOrMakeDTE(IDEVersion? version)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Usage",
+        "CA1416:Not reachable on other targets than Windows",
+        Justification = "Windows-only app"
+    )]
+    protected TypeDTE GetOrMakeDTE(IDEVersion? version)
     {
         if (version is IDEVersion v)
         {
@@ -260,7 +291,7 @@ public class TcService : IDisposable
                 _logger.LogDebug($"Trying to attach to DTE for {infoStr}...");
                 try
                 {
-                    return (EnvDTE.DTE)Marshal2.GetActiveObject(progId);
+                    return (TypeDTE)Marshal2.GetActiveObject(progId);
                 }
                 catch (COMException)
                 {
@@ -279,14 +310,14 @@ public class TcService : IDisposable
                         $"Could not make DTE instance of type {infoStr}"
                     );
                 }
-                var dte = (EnvDTE.DTE)Activator.CreateInstance(type);
+                var dte = (TypeDTE)Activator.CreateInstance(type)!;
                 dte.SuppressUI = !ShowUI;
                 dte.MainWindow.Visible = ShowUI;
                 return dte;
             }
         }
 
-        foreach (IDEVersion ver in Enum.GetValues(typeof(IDEVersion)))
+        foreach (IDEVersion ver in Enum.GetValues<IDEVersion>())
         {
             try
             {
@@ -295,6 +326,61 @@ public class TcService : IDisposable
             catch (InvalidOperationException) { } // Let slide and try the next option
         }
         throw new InvalidOperationException("Failed to initialize any DTE");
+    }
+
+    /// <summary>
+    /// Get items from the error-list window and output it.
+    ///
+    /// This output is always up-to-date with e.g. the last build, no need to wait.
+    ///
+    /// Returns `true` if there were any errors (respecting `WarningsAsErrors`.
+    /// </summary>
+    protected bool LogErrorsList()
+    {
+        DTE.ToolWindows.ErrorList.ShowMessages = false;
+        DTE.ToolWindows.ErrorList.ShowWarnings = true;
+        DTE.ToolWindows.ErrorList.ShowErrors = true;
+        var errorItems = DTE.ToolWindows.ErrorList.ErrorItems;
+
+        bool hasErrors = false;
+
+        for (int i = 1; i <= errorItems.Count; i++)
+        {
+            var item = errorItems.Item(i);
+            bool isError = item.ErrorLevel >= vsBuildErrorLevel.vsBuildErrorLevelHigh;
+            string label = isError ? "ERROR" : "WARNING";
+            FileInfo file = new(item.FileName);
+
+            _logger.Log(
+                isError ? LogLevel.Error : LogLevel.Warning,
+                $"{label}:\t{item.Description}\t{file.Name}:{item.Line}"
+            );
+
+            if (isError || WarningsAsError)
+            {
+                hasErrors = true;
+            }
+        }
+
+        return hasErrors;
+    }
+
+    /// <summary>
+    /// Get any new build output (only new text since the last call).
+    ///
+    /// The build output is _not_ instantaneous: after a build the output is not guaranteed
+    /// to be aleady up-to-date.
+    /// </summary>
+    protected string ConsumeBuildOutput()
+    {
+        if (_buildOutputStartPoint is null)
+        {
+            _buildOutputStartPoint = BuildOutput.TextDocument.StartPoint.CreateEditPoint();
+        }
+        var outputEnd = BuildOutput.TextDocument.EndPoint.CreateEditPoint();
+        var result = _buildOutputStartPoint.GetText(outputEnd);
+        _buildOutputStartPoint = outputEnd;
+        return result;
     }
 
     /// <summary>
@@ -324,6 +410,17 @@ public class TcService : IDisposable
         _logger.LogInformation($"Building solution [{name}]...");
 
         solutionBuild.Build(true);
+
+        var hasErrors = LogErrorsList();
+
+        if (solutionBuild.LastBuildInfo == 0 && !hasErrors)
+        {
+            _logger.LogInformation("Succesfully built solution without errors");
+        }
+        else
+        {
+            _logger.LogError("Failed to build enitre solution");
+        }
     }
 
     /// <summary>
@@ -332,9 +429,13 @@ public class TcService : IDisposable
     public void CheckObjects()
     {
         var project = PlcProject;
-        _logger.LogInformation($"Performing 'check all objects' for '{_plcProjectName}'...");
+
+        _logger.LogInformation($"Performing \"check all objects\" for '{_plcProjectName}'...");
         bool result = project.CheckAllObjects();
-        if (result)
+
+        var hasErrors = LogErrorsList();
+
+        if (result || hasErrors)
         {
             _logger.LogInformation("No errors found");
         }
@@ -353,6 +454,7 @@ public class TcService : IDisposable
 
         _logger.LogInformation($"Activating configuration on '{netId}'...");
 
+        // This is the same as activating with the 'autostart PLC boot project(s)' option unchecked:
         SysManager.ActivateConfiguration();
 
         _logger.LogInformation("Making PLC boot project...");
@@ -360,11 +462,23 @@ public class TcService : IDisposable
         PlcRootProject.BootProjectAutostart = true;
         PlcRootProject.GenerateBootProject(true);
 
+        if (LogErrorsList())
+        {
+            _logger.LogError("Encountered errors during activation");
+            return;
+        }
+
         SysManager.StartRestartTwinCAT();
+        // Unfortunately there is no feedback on the activate, boot project generation or run mode toggle
 
         if (!SysManager.IsTwinCATStarted())
         {
             _logger.LogError("TwinCAT is not actually in run mode");
+        }
+
+        if (LogErrorsList())
+        {
+            _logger.LogError("Encountered errors during TwinCAT restart");
         }
     }
 }

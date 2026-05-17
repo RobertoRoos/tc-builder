@@ -15,7 +15,7 @@ public static class Marshal2
     [System.Security.SecurityCritical] // auto-generated_required
     public static Object GetActiveObject(String progID)
     {
-        Object obj = null;
+        Object? obj = null;
         Guid clsid;
 
         // Call CLSIDFromProgIDEx first then fall back on CLSIDFromProgID if
