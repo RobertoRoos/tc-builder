@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <POU Name="FB_MyBlock" Id="{f43557f1-a608-470a-a7b8-6c4150ab7563}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MyBlock
+VAR_OUTPUT
+	myVar		: INT := 42;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

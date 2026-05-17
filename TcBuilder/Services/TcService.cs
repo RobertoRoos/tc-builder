@@ -1,8 +1,7 @@
-﻿using System.ComponentModel;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using EnvDTE;
-using EnvDTE100;
 using EnvDTE80;
+using EnvDTE100;
 using Microsoft.Extensions.Logging;
 using TCatSysManagerLib; // This is made available as a "COM Reference" in this VS project
 //

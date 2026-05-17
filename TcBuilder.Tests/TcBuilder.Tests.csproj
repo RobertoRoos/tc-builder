@@ -20,11 +20,4 @@
     <ProjectReference Include="..\TcBuilder\TcBuilder.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!--
-      Anything under TestAssets/ is copied next to the test assembly at build
-      time. Drop fixture TwinCAT solutions here (see TestAssets/README.md).
-    -->
-    <None Include="TestAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 </Project>
