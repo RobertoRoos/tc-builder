@@ -435,7 +435,7 @@ public class TcService : IDisposable
 
         var hasErrors = LogErrorsList();
 
-        if (result || hasErrors)
+        if (result && !hasErrors)
         {
             _logger.LogInformation("No errors found");
         }

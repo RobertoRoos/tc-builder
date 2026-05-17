@@ -97,23 +97,26 @@ public class RunCommand : Command
                 tc.ShowUI = parseResult.GetValue(showUIOption);
                 tc.WarningsAsError = parseResult.GetValue(warningsOption);
 
-                foreach (var step in parseResult.GetValue(stepsOption)!)
+                await Task.Run(() =>
                 {
-                    switch (step)
+                    foreach (var step in parseResult.GetValue(stepsOption)!)
                     {
-                        case Step.build:
-                            tc.Build();
-                            break;
-                        case Step.check:
-                            tc.CheckObjects();
-                            break;
-                        case Step.activate:
-                            tc.Activate();
-                            break;
-                        default:
-                            throw new InvalidOperationException($"Unknown step '{step}'");
+                        switch (step)
+                        {
+                            case Step.build:
+                                tc.Build();
+                                break;
+                            case Step.check:
+                                tc.CheckObjects();
+                                break;
+                            case Step.activate:
+                                tc.Activate();
+                                break;
+                            default:
+                                throw new InvalidOperationException($"Unknown step '{step}'");
+                        }
                     }
-                }
+                });
 
                 return 0;
             }
