@@ -1,5 +1,11 @@
 # TcBuilder
 
+**Status:**  
+This project under active development and not finished.  
+However, it should already be functional for basic usage.
+
+---
+
 This repository contains a program to interface with TwinCAT over the commandline.
 TwinCAT is notoriously difficult to automate and this tool should be the final solution for it.
 
