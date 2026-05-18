@@ -1,10 +1,12 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using TcBuilder.Services;
 using TcBuilder.Tests.TestAssets;
 
 namespace TcBuilder.Tests.Integration;
 
 /// <summary>
 /// End-to-end tests that exercise the real <see cref="TcService"/>.
-/// 
+///
 /// This is not a true unit-test testcase, it is full integration test. It
 /// depends on a real TwinCAT IDE being present and it will perform real TwinCAT builds.
 /// </summary>
@@ -12,6 +14,7 @@ namespace TcBuilder.Tests.Integration;
 public sealed class IntegrationTests : IDisposable
 {
     SolutionFixture? solution = null;
+    TcService? tc = null;
 
     /// <summary>
     /// Constructor
@@ -26,6 +29,12 @@ public sealed class IntegrationTests : IDisposable
     /// </summary>
     public void Dispose()
     {
+        if (tc is not null)
+        {
+            tc.Dispose(); // Close the DTE before trying to delete the folder
+            tc = null;
+        }
+
         if (solution is not null)
         {
             solution.Dispose();
@@ -33,10 +42,29 @@ public sealed class IntegrationTests : IDisposable
         }
     }
 
-    [Fact]
-    public void Some_Test_Method()
+    [Theory]
+    [InlineData(IDEVersion.TcXAE)]
+    [InlineData(IDEVersion.VS2022)]
+    public void Happy_Flow_Build(IDEVersion ide)
     {
-        int x = 1;
-        x.ShouldBe(x);
+        solution = SolutionFixture.Load("minimal");
+        tc = MakeService();
+
+        tc.IdeVersion = ide;
+        tc.SolutionFile = solution.SolutionFile;
+        tc.ShowUI = true;
+        tc.Build();
+    }
+
+    [Fact]
+    public void Dummy()
+    {
+        solution = SolutionFixture.Load("minimal");
+    }
+
+    private TcService MakeService()
+    {
+        NullLogger<TcService> logger = new();
+        return new(logger);
     }
 }

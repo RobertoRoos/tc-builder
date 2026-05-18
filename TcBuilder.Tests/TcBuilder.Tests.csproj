@@ -20,4 +20,17 @@
     <ProjectReference Include="..\TcBuilder\TcBuilder.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="TestAssets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Project / solution files will not be tracked automatically without this -->
+    <None Include="TestAssets\minimal\minimal.sln" />
+    <None Include="TestAssets\minimal\minimal.tsproj" />
+    <None Include="TestAssets\minimal\my_plc\my_plc.plcproj" />
+  </ItemGroup>
+
 </Project>

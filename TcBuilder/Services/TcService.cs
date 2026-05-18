@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using EnvDTE;
-using EnvDTE80;
 using EnvDTE100;
+using EnvDTE80;
 using Microsoft.Extensions.Logging;
 using TCatSysManagerLib; // This is made available as a "COM Reference" in this VS project
 //
@@ -12,6 +12,8 @@ using TypePlcProject = TCatSysManagerLib.ITcPlcProject; // There is IECProject a
 using TypeProject = EnvDTE.Project;
 using TypeSolution = EnvDTE100.Solution4;
 using TypeSysManager = TCatSysManagerLib.ITcSysManager18;
+
+using Thread = System.Threading.Thread;
 
 namespace TcBuilder.Services;
 
@@ -84,7 +86,11 @@ public class TcService : IDisposable
             {
                 _dte = GetOrMakeDTE(IdeVersion);
 
-                ConsumeBuildOutput(); // As the DTE is new, reset the build output head
+                try
+                {
+                    ConsumeBuildOutput(); // As the DTE is new, reset the build output head
+                }
+                catch (COMException) { } // This won't always work, just let it slide
             }
             return _dte;
         }
@@ -118,7 +124,7 @@ public class TcService : IDisposable
                     else
                     {
                         _logger.LogInformation($"Opening solution file '{path}'...");
-                        _solution.Open(path);
+                        _solution.Open(path); // This call 
                     }
                 }
 
@@ -387,11 +393,14 @@ public class TcService : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_dte is not null && !Attach && !KeepOpen)
+        if (_dte is not null)
         {
-            _logger.LogDebug("Closing IDE...");
-            _dte.Quit();
-            _dte = null;
+            if (!Attach && !KeepOpen)
+            {
+                _logger.LogDebug("Closing IDE...");
+                _dte.Quit();
+                _dte = null;
+            }
         }
     }
 
@@ -407,6 +416,8 @@ public class TcService : IDisposable
         string name = conf.Name + "|" + context.PlatformName;
 
         _logger.LogInformation($"Building solution [{name}]...");
+
+        Thread.Sleep(500); // Terrible, but the IDE can hang if we immediately move on, so insert a tiny extra wait
 
         solutionBuild.Build(true);
 
